@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dam.moviles.tareas_app_front.data.notifications.TaskReminderScheduler
 import dam.moviles.tareas_app_front.data.remote.ApiErrorParser
+import dam.moviles.tareas_app_front.data.remote.ErrorMapper
 import dam.moviles.tareas_app_front.data.remote.ResultadoGuardarTarea
 import dam.moviles.tareas_app_front.data.remote.dto.TareaResponseDto
 import dam.moviles.tareas_app_front.data.remote.dto.TipoTareaResponseDto
@@ -50,7 +51,6 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun TareasScreen(
-    token: String,
     usuarioId: Long?,
     nombreUsuario: String,
     emailUsuario: String,
@@ -172,11 +172,11 @@ fun TareasScreen(
                 isLoading = true
                 error = null
 
-                tareas = repository.obtenerTareas(token)
-                tiposTarea = repository.obtenerTiposTarea(token)
+                tareas = repository.obtenerTareas()
+                tiposTarea = repository.obtenerTiposTarea()
             } catch (e: Exception) {
                 e.printStackTrace()
-                error = "No se pudieron cargar las tareas"
+                error = ErrorMapper.mensajePara(e)
             } finally {
                 isLoading = false
             }
@@ -189,7 +189,6 @@ fun TareasScreen(
                 error = null
 
                 repository.eliminarTarea(
-                    token = token,
                     id = tarea.id
                 )
 
@@ -202,12 +201,12 @@ fun TareasScreen(
                 cargarDatos()
             } catch (e: Exception) {
                 e.printStackTrace()
-                error = "No se pudo eliminar la tarea"
+                error = ErrorMapper.mensajePara(e)
             }
         }
     }
 
-    LaunchedEffect(token) {
+    LaunchedEffect(Unit) {
         cargarDatos()
     }
 
@@ -474,12 +473,10 @@ fun TareasScreen(
 
                                 val tareaActualizada = if (completada) {
                                     repository.completarTarea(
-                                        token = token,
                                         id = tarea.id
                                     )
                                 } else {
                                     repository.reabrirTarea(
-                                        token = token,
                                         id = tarea.id
                                     )
                                 }
@@ -511,8 +508,7 @@ fun TareasScreen(
                                 }
                             } catch (e: Exception) {
                                 e.printStackTrace()
-                                error =
-                                    "No se pudo actualizar la tarea"
+                                error = ErrorMapper.mensajePara(e)
                             }
                         }
                     },
@@ -552,7 +548,6 @@ fun TareasScreen(
             onGuardar = { nuevaTarea ->
                 try {
                     val tareaCreada = repository.crearTarea(
-                        token = token,
                         tarea = nuevaTarea
                     )
 
@@ -600,17 +595,16 @@ fun TareasScreen(
                         error = null
 
                         repository.crearTipoTarea(
-                            token = token,
                             tipo = nuevoTipo
                         )
 
                         mostrarDialogCrearTipo = false
 
                         tiposTarea =
-                            repository.obtenerTiposTarea(token)
+                            repository.obtenerTiposTarea()
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        error = "No se pudo crear el tipo de tarea"
+                        error = ErrorMapper.mensajePara(e)
                     }
                 }
             }
@@ -638,7 +632,6 @@ fun TareasScreen(
             onGuardar = { tareaActualizada ->
                 try {
                     val tareaEditada = repository.editarTarea(
-                        token = token,
                         id = tarea.id,
                         tarea = tareaActualizada
                     )

@@ -42,12 +42,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dam.moviles.tareas_app_front.R
+import dam.moviles.tareas_app_front.data.remote.ErrorMapper
 import dam.moviles.tareas_app_front.data.remote.RetrofitClient
 import dam.moviles.tareas_app_front.data.remote.dto.RegistroRequestDto
 import dam.moviles.tareas_app_front.ui.auth.login.LoginScreen
 import dam.moviles.tareas_app_front.ui.components.AnimatedBlueButton
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 @Composable
 fun RegisterScreen(
@@ -306,14 +306,8 @@ fun RegisterScreen(
 
                                 onGoToLogin("Cuenta creada correctamente. Ya puedes iniciar sesión.")
 
-                            } catch (e: HttpException) {
-                                generalError = when (e.code()) {
-                                    400 -> "Revisa los datos introducidos"
-                                    409 -> "El usuario o email ya existe"
-                                    else -> "Error del servidor: ${e.code()}"
-                                }
                             } catch (e: Exception) {
-                                generalError = "No se pudo conectar con la API"
+                                generalError = ErrorMapper.mensajePara(e)
                             } finally {
                                 isLoading = false
                             }

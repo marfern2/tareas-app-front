@@ -9,6 +9,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import dam.moviles.tareas_app_front.data.remote.dto.TareaResponseDto
 import dam.moviles.tareas_app_front.data.repository.TareasRepository
+import dam.moviles.tareas_app_front.data.session.TokenManager
 import dam.moviles.tareas_app_front.data.settings.AppSettings
 import java.util.concurrent.TimeUnit
 
@@ -139,12 +140,12 @@ class TaskReminderScheduler(
     /**
      * Reprograma todos los recordatorios consultando el servidor.
      *
-     * Si no hay token (sesión sin "mantener sesión iniciada" o sin sesión) no
-     * hace nada: no envía información antigua y no lanza errores. Si la petición
-     * falla, deja los trabajos ya programados tal cual.
+     * Usa la autenticación automática (el repositorio renueva el access token
+     * ante un 401). Si no hay sesión renovable no hace nada: no envía
+     * información antigua y no lanza errores. Si la petición falla, deja los
+     * trabajos ya programados tal cual.
      */
     suspend fun sincronizarDesdeServidor(
-        token: String?,
         ajustes: AppSettings,
         usuarioId: Long
     ) {
@@ -153,12 +154,14 @@ class TaskReminderScheduler(
             return
         }
 
-        if (token.isNullOrBlank()) {
+        // Sin refresh token no se puede renovar la sesión: no tiene sentido
+        // consultar tareas en segundo plano.
+        if (TokenManager(context).obtenerRefreshToken() == null) {
             return
         }
 
         val tareas = try {
-            TareasRepository().obtenerTareas(token)
+            TareasRepository().obtenerTareas()
         } catch (_: Exception) {
             return
         }

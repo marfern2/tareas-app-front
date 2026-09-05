@@ -16,7 +16,9 @@ import dam.moviles.tareas_app_front.data.notifications.ExtrasNotificacion
 import dam.moviles.tareas_app_front.data.notifications.NotificationChannels
 import dam.moviles.tareas_app_front.data.notifications.NotificacionEstadoStore
 import dam.moviles.tareas_app_front.data.notifications.TaskReminderScheduler
+import dam.moviles.tareas_app_front.data.remote.RetrofitClient
 import dam.moviles.tareas_app_front.data.session.ProfilePreferences
+import dam.moviles.tareas_app_front.data.session.SessionManager
 import dam.moviles.tareas_app_front.data.session.TokenManager
 import dam.moviles.tareas_app_front.data.settings.AppSettings
 import dam.moviles.tareas_app_front.data.settings.SettingsPreferences
@@ -55,8 +57,16 @@ class MainActivity : ComponentActivity() {
             TareasappfrontTheme(
                 ajustes = ajustes
             ) {
-                var tokenJwt by remember {
-                    mutableStateOf(tokenManager.obtenerToken())
+                // La sesión se restaura SOLO si hay access + refresh guardados.
+                // No se obliga a llamar al servidor al arrancar: si el access
+                // token caducó, la primera petición lo renueva automáticamente.
+                val sesionRestaurable = remember {
+                    tokenManager.obtenerAccessToken() != null &&
+                        tokenManager.obtenerRefreshToken() != null
+                }
+
+                var sesionActiva by remember {
+                    mutableStateOf(sesionRestaurable)
                 }
 
                 var usuarioId by remember {
@@ -79,7 +89,7 @@ class MainActivity : ComponentActivity() {
 
                 var pantallaActual by remember {
                     mutableStateOf(
-                        if (tokenJwt != null) {
+                        if (sesionRestaurable) {
                             "tareas"
                         } else {
                             "login"
@@ -108,6 +118,45 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Limpieza local de la sesión: tokens, perfil, notificaciones
+                // y WorkManager. Se reutiliza para logout manual y para cuando
+                // el refresh confirma que la sesión ya no es renovable.
+                fun limpiarSesionLocal() {
+                    val userIdActual = usuarioId
+
+                    sesionActiva = false
+                    usuarioId = null
+                    nombreUsuario = ""
+                    emailUsuario = ""
+                    fotoPerfilUri = null
+
+                    tokenManager.borrarTokens()
+                    profilePreferences.borrarUsuarioActual()
+
+                    if (userIdActual != null) {
+                        TaskReminderScheduler(appContext)
+                            .cancelarTodoDelUsuario(userIdActual)
+
+                        NotificacionEstadoStore(appContext)
+                            .limpiarUsuario(userIdActual)
+                    }
+
+                    mensajeRegistroCorrecto = null
+                    SessionManager.reiniciar()
+                    pantallaActual = "login"
+                }
+
+                // Si el refresh token ya no es válido (expirado, revocado o
+                // inexistente), la app vuelve al login de forma controlada.
+                val sesionInvalida by SessionManager.sesionInvalida
+                    .collectAsStateWithLifecycle()
+
+                LaunchedEffect(sesionInvalida) {
+                    if (sesionInvalida) {
+                        limpiarSesionLocal()
+                    }
+                }
+
                 // Reprograma recordatorios y resumen diario cuando cambian los
                 // ajustes de notificación o la sesión.
                 LaunchedEffect(
@@ -119,15 +168,13 @@ class MainActivity : ComponentActivity() {
                     ajustes.minutoNotificacion,
                     ajustes.antelacionDias,
                     usuarioId,
-                    tokenJwt
+                    sesionActiva
                 ) {
                     val userId = usuarioId
-                    val token = tokenJwt
 
-                    if (userId != null && token != null) {
+                    if (userId != null && sesionActiva) {
                         TaskReminderScheduler(appContext)
                             .sincronizarDesdeServidor(
-                                token = token,
                                 ajustes = ajustes,
                                 usuarioId = userId
                             )
@@ -138,7 +185,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(intentNotificacion.value) {
                     val dato = intentNotificacion.value ?: return@LaunchedEffect
 
-                    if (tokenJwt == null) {
+                    if (!sesionActiva) {
                         return@LaunchedEffect
                     }
 
@@ -167,13 +214,21 @@ class MainActivity : ComponentActivity() {
                                 pantallaActual = "registro"
                             },
                             onLoginSuccess = {
-                                    token,
-                                    mantenerSesion,
-                                    nuevoUsuarioId,
-                                    nuevoUsername,
-                                    nuevoEmail ->
+                                token,
+                                refreshToken,
+                                mantenerSesion,
+                                nuevoUsuarioId,
+                                nuevoUsername,
+                                nuevoEmail ->
 
-                                tokenJwt = token
+                                // Guarda access + refresh juntos; la persistencia
+                                // depende de "Mantener sesión iniciada".
+                                tokenManager.guardarTokens(
+                                    accessToken = token,
+                                    refreshToken = refreshToken,
+                                    persistir = mantenerSesion
+                                )
+
                                 usuarioId = nuevoUsuarioId
                                 nombreUsuario = nuevoUsername
                                 emailUsuario = nuevoEmail
@@ -189,12 +244,8 @@ class MainActivity : ComponentActivity() {
                                         nuevoUsuarioId
                                     )
 
-                                if (mantenerSesion) {
-                                    tokenManager.guardarToken(token)
-                                } else {
-                                    tokenManager.borrarToken()
-                                }
-
+                                sesionActiva = true
+                                SessionManager.reiniciar()
                                 pantallaActual = "tareas"
                             }
                         )
@@ -211,7 +262,6 @@ class MainActivity : ComponentActivity() {
 
                     "tareas" -> {
                         TareasScreen(
-                            token = tokenJwt.orEmpty(),
                             usuarioId = usuarioId,
                             nombreUsuario = nombreUsuario,
                             emailUsuario = emailUsuario,
@@ -221,27 +271,16 @@ class MainActivity : ComponentActivity() {
                                 pantallaActual = "perfil"
                             },
                             onLogout = {
-                                val userIdActual = usuarioId
+                                // Se intenta avisar al backend, pero la sesión
+                                // local se limpia siempre, aunque falle la red.
+                                val refreshToken =
+                                    tokenManager.obtenerRefreshToken()
 
-                                tokenJwt = null
-                                usuarioId = null
-                                nombreUsuario = ""
-                                emailUsuario = ""
-                                fotoPerfilUri = null
-
-                                tokenManager.borrarToken()
-                                profilePreferences.borrarUsuarioActual()
-
-                                if (userIdActual != null) {
-                                    TaskReminderScheduler(appContext)
-                                        .cancelarTodoDelUsuario(userIdActual)
-
-                                    NotificacionEstadoStore(appContext)
-                                        .limpiarUsuario(userIdActual)
+                                scope.launch {
+                                    RetrofitClient.cerrarSesion(refreshToken)
                                 }
 
-                                mensajeRegistroCorrecto = null
-                                pantallaActual = "login"
+                                limpiarSesionLocal()
                             },
                             onAjustes = {
                                 pantallaActual = "ajustes"
@@ -255,7 +294,6 @@ class MainActivity : ComponentActivity() {
 
                     "calendario" -> {
                         CalendarScreen(
-                            token = tokenJwt.orEmpty(),
                             usuarioId = usuarioId,
                             ajustes = ajustes,
                             fechaInicial = fechaCalendarioInicial,
@@ -267,7 +305,6 @@ class MainActivity : ComponentActivity() {
 
                     "perfil" -> {
                         ProfileScreen(
-                            token = tokenJwt.orEmpty(),
                             nombreUsuario = nombreUsuario,
                             emailUsuario = emailUsuario,
                             fotoPerfilUri = fotoPerfilUri,
@@ -306,13 +343,11 @@ class MainActivity : ComponentActivity() {
                             },
                             onReprogramarRecordatorios = {
                                 val userId = usuarioId
-                                val token = tokenJwt
 
-                                if (userId != null && token != null) {
+                                if (userId != null && sesionActiva) {
                                     scope.launch {
                                         TaskReminderScheduler(appContext)
                                             .sincronizarDesdeServidor(
-                                                token = token,
                                                 ajustes = ajustes,
                                                 usuarioId = userId
                                             )

@@ -3,7 +3,6 @@ package dam.moviles.tareas_app_front.data.remote
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import retrofit2.HttpException
-import java.io.IOException
 
 data class ApiErrorResult(
     val fieldErrors: Map<String, String> = emptyMap(),
@@ -22,9 +21,32 @@ sealed class ResultadoGuardarTarea {
 
 object ApiErrorParser {
 
-    fun parsear(e: Exception): ApiErrorResult {
+    /**
+     * Extrae los errores técnicos y los traduce a un resultado de UI.
+     *
+     * Los errores de validación por campo que envía el backend se conservan
+     * tal cual (p. ej. para crear/editar tareas). Cuando no hay errores por
+     * campo, el mensaje general es siempre un mensaje natural e inteligible,
+     * nunca un código HTTP ni el nombre de una excepción.
+     */
+    fun parsear(
+        e: Exception,
+        contexto: ErrorContext = ErrorContext.GENERAL
+    ): ApiErrorResult {
+        val erroresCampos = extraerErroresDeCampo(e)
+
+        return ApiErrorResult(
+            fieldErrors = erroresCampos,
+            generalMessage = if (erroresCampos.isNotEmpty()) {
+                null
+            } else {
+                ErrorMapper.mensajePara(e, contexto)
+            }
+        )
+    }
+
+    private fun extraerErroresDeCampo(e: Exception): Map<String, String> {
         if (e is HttpException) {
-            val codigo = e.code()
             val body = e.response()?.errorBody()?.string()
 
             if (!body.isNullOrBlank()) {
@@ -44,40 +66,13 @@ object ApiErrorParser {
                         }
                     }
 
-                    val mensajeGeneral = when {
-                        json.has("message") && json.get("message").isJsonPrimitive ->
-                            json.get("message").asString
-                        json.has("error") && json.get("error").isJsonPrimitive ->
-                            json.get("error").asString
-                        else -> null
-                    }
-
-                    return ApiErrorResult(
-                        fieldErrors = erroresCampos,
-                        generalMessage = if (erroresCampos.isNotEmpty()) {
-                            null
-                        } else {
-                            mensajeGeneral
-                        }
-                    )
+                    return erroresCampos
                 } catch (_: Exception) {
-                    // El cuerpo no era JSON válido; se usa el mensaje genérico
+                    // El cuerpo no era JSON válido; se usa el mensaje natural
                 }
             }
-
-            return ApiErrorResult(
-                generalMessage = "Error del servidor (código $codigo)"
-            )
         }
 
-        if (e is IOException) {
-            return ApiErrorResult(
-                generalMessage = "No se pudo conectar con el servidor"
-            )
-        }
-
-        return ApiErrorResult(
-            generalMessage = "Ocurrió un error inesperado"
-        )
+        return emptyMap()
     }
 }

@@ -66,4 +66,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.coil.compose)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }

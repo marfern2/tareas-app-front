@@ -12,7 +12,8 @@ import dam.moviles.tareas_app_front.ui.calendar.hoy
 /**
  * Worker del resumen diario y de los avisos de tareas vencidas.
  *
- * Consulta las tareas actualizadas en el servidor con el token persistido.
+ * Consulta las tareas actualizadas en el servidor usando la autenticación
+ * automática (el interceptor añade el access token y lo renueva ante un 401).
  * Si no hay sesión persistente (sin "mantener sesión iniciada") no envía nada:
  * nunca usa información antigua de otra cuenta.
  */
@@ -33,17 +34,17 @@ class DailySummaryWorker(
             return Result.success()
         }
 
-        val token = TokenManager(applicationContext).obtenerToken()
-
-        if (token == null) {
-            // Sin sesión persistente el worker no puede consultar tareas
-            // actualizadas; es mejor no enviar nada que enviar información vieja.
+        // Sin refresh token no se puede renovar la sesión: mejor no consultar
+        // tareas que mostrar datos de otra cuenta o de una sesión muerta.
+        if (TokenManager(applicationContext).obtenerRefreshToken() == null) {
             return Result.success()
         }
 
         val tareas = try {
-            TareasRepository().obtenerTareas(token)
+            TareasRepository().obtenerTareas()
         } catch (_: Exception) {
+            // Un 401 no renovable ya limpió la sesión; un fallo de red se
+            // ignora para no lanzar notificaciones erróneas.
             return Result.success()
         }
 

@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dam.moviles.tareas_app_front.data.remote.ErrorMapper
 import dam.moviles.tareas_app_front.data.remote.ResultadoGuardarTarea
 import dam.moviles.tareas_app_front.data.remote.dto.CrearTareaRequestDto
 import dam.moviles.tareas_app_front.data.remote.dto.TipoTareaResponseDto
@@ -382,7 +383,7 @@ fun CrearTareaDialog(
                         } catch (e: Exception) {
                             e.printStackTrace()
                             ResultadoGuardarTarea.ErrorGeneral(
-                                "No se pudo completar la operación"
+                                ErrorMapper.mensajePara(e)
                             )
                         } finally {
                             isLoading = false

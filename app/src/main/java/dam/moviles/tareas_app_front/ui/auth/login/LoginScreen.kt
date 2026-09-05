@@ -46,11 +46,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dam.moviles.tareas_app_front.R
+import dam.moviles.tareas_app_front.data.remote.ErrorContext
+import dam.moviles.tareas_app_front.data.remote.ErrorMapper
 import dam.moviles.tareas_app_front.data.remote.RetrofitClient
 import dam.moviles.tareas_app_front.data.remote.dto.LoginRequestDto
 import dam.moviles.tareas_app_front.ui.components.AnimatedBlueButton
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 @Composable
 fun LoginScreen(
@@ -58,6 +59,7 @@ fun LoginScreen(
     onGoToRegister: () -> Unit,
     onLoginSuccess: (
         token: String,
+        refreshToken: String,
         mantenerSesion: Boolean,
         usuarioId: Long,
         username: String,
@@ -333,9 +335,6 @@ fun LoginScreen(
                                     )
                                 )
 
-                                println("TOKEN RECIBIDO: ${respuesta.token}")
-                                println("MANTENER SESIÓN: $mantenerSesion")
-
                                 Toast.makeText(
                                     context,
                                     "Login correcto",
@@ -343,22 +342,19 @@ fun LoginScreen(
                                 ).show()
 
                                 onLoginSuccess(
-                                    respuesta.token,
+                                    respuesta.token.orEmpty(),
+                                    respuesta.refreshToken.orEmpty(),
                                     mantenerSesion,
                                     respuesta.id,
                                     respuesta.username,
                                     respuesta.email
                                 )
 
-                            } catch (e: HttpException) {
-                                generalError = when (e.code()) {
-                                    401 -> "Email o contraseña incorrectos"
-                                    403 -> "No tienes permiso para acceder"
-                                    404 -> "Usuario no encontrado"
-                                    else -> "Error del servidor: ${e.code()}"
-                                }
                             } catch (e: Exception) {
-                                generalError = "No se pudo conectar con la API"
+                                generalError = ErrorMapper.mensajePara(
+                                    e,
+                                    ErrorContext.LOGIN
+                                )
                             } finally {
                                 isLoading = false
                             }
@@ -401,6 +397,6 @@ fun LoginScreenPreview() {
     LoginScreen(
         mensajeRegistroCorrecto = "",
         onGoToRegister = {},
-        onLoginSuccess = { _, _, _, _, _ -> }
+        onLoginSuccess = { _, _, _, _, _, _ -> }
     )
 }

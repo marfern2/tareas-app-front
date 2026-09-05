@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dam.moviles.tareas_app_front.data.notifications.TaskReminderScheduler
 import dam.moviles.tareas_app_front.data.remote.ApiErrorParser
+import dam.moviles.tareas_app_front.data.remote.ErrorMapper
 import dam.moviles.tareas_app_front.data.remote.ResultadoGuardarTarea
 import dam.moviles.tareas_app_front.data.remote.dto.TareaResponseDto
 import dam.moviles.tareas_app_front.data.remote.dto.TipoTareaResponseDto
@@ -52,7 +53,6 @@ import java.util.Calendar
 
 @Composable
 fun CalendarScreen(
-    token: String,
     usuarioId: Long?,
     ajustes: AppSettings,
     fechaInicial: String? = null,
@@ -137,18 +137,18 @@ fun CalendarScreen(
                 isLoading = true
                 error = null
 
-                tareas = repository.obtenerTareas(token)
-                tiposTarea = repository.obtenerTiposTarea(token)
+                tareas = repository.obtenerTareas()
+                tiposTarea = repository.obtenerTiposTarea()
             } catch (e: Exception) {
                 e.printStackTrace()
-                error = "No se pudieron cargar las tareas"
+                error = ErrorMapper.mensajePara(e)
             } finally {
                 isLoading = false
             }
         }
     }
 
-    LaunchedEffect(token) {
+    LaunchedEffect(Unit) {
         cargarDatos()
     }
 
@@ -211,12 +211,10 @@ fun CalendarScreen(
 
                 val actualizada = if (completada) {
                     repository.completarTarea(
-                        token = token,
                         id = tarea.id
                     )
                 } else {
                     repository.reabrirTarea(
-                        token = token,
                         id = tarea.id
                     )
                 }
@@ -247,7 +245,7 @@ fun CalendarScreen(
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                error = "No se pudo actualizar la tarea"
+                error = ErrorMapper.mensajePara(e)
             }
         }
     }
@@ -508,7 +506,6 @@ fun CalendarScreen(
             onGuardar = { nuevaTarea ->
                 try {
                     val tareaCreada = repository.crearTarea(
-                        token = token,
                         tarea = nuevaTarea
                     )
 
@@ -556,16 +553,15 @@ fun CalendarScreen(
                         error = null
 
                         repository.crearTipoTarea(
-                            token = token,
                             tipo = nuevoTipo
                         )
 
                         mostrarCrearTipo = false
 
-                        tiposTarea = repository.obtenerTiposTarea(token)
+                        tiposTarea = repository.obtenerTiposTarea()
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        error = "No se pudo crear el tipo de tarea"
+                        error = ErrorMapper.mensajePara(e)
                     }
                 }
             }
@@ -593,7 +589,6 @@ fun CalendarScreen(
             onGuardar = { tareaActualizada ->
                 try {
                     val tareaEditada = repository.editarTarea(
-                        token = token,
                         id = tarea.id,
                         tarea = tareaActualizada
                     )

@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dam.moviles.tareas_app_front.data.remote.ErrorMapper
 import dam.moviles.tareas_app_front.data.remote.dto.TareaResponseDto
 import dam.moviles.tareas_app_front.data.repository.TareasRepository
 import dam.moviles.tareas_app_front.ui.components.AnimatedBlueButton
@@ -50,7 +51,6 @@ import java.util.Locale
 
 @Composable
 fun ProfileScreen(
-    token: String,
     nombreUsuario: String,
     emailUsuario: String,
     fotoPerfilUri: String?,
@@ -106,10 +106,10 @@ fun ProfileScreen(
             try {
                 isLoading = true
                 error = null
-                tareas = repository.obtenerTareas(token)
+                tareas = repository.obtenerTareas()
             } catch (e: Exception) {
                 e.printStackTrace()
-                error = "No se pudieron cargar las estadísticas"
+                error = ErrorMapper.mensajePara(e)
             } finally {
                 isLoading = false
             }
