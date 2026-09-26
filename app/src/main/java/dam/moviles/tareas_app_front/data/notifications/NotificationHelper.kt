@@ -1,6 +1,7 @@
 package dam.moviles.tareas_app_front.data.notifications
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -109,7 +110,7 @@ object NotificationHelper {
                 )
             )
 
-        NotificationManagerCompat.from(context).notify(id, builder.build())
+        publicar(context, id, builder)
     }
 
     fun enviarTareaVencida(
@@ -149,7 +150,7 @@ object NotificationHelper {
                 )
             )
 
-        NotificationManagerCompat.from(context).notify(id, builder.build())
+        publicar(context, id, builder)
     }
 
     fun enviarResumen(
@@ -203,7 +204,7 @@ object NotificationHelper {
                 )
             )
 
-        NotificationManagerCompat.from(context).notify(id, builder.build())
+        publicar(context, id, builder)
     }
 
     fun enviarPrueba(context: Context): ResultadoNotificacionPrueba {
@@ -242,9 +243,11 @@ object NotificationHelper {
                 )
             )
 
-        NotificationManagerCompat.from(context).notify(id, builder.build())
-
-        return ResultadoNotificacionPrueba.EXITO
+        return if (publicar(context, id, builder)) {
+            ResultadoNotificacionPrueba.EXITO
+        } else {
+            ResultadoNotificacionPrueba.BLOQUEADA_POR_ANDROID
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -283,6 +286,23 @@ object NotificationHelper {
     // ---------------------------------------------------------------------
     // Construcción interna
     // ---------------------------------------------------------------------
+
+    @SuppressLint("MissingPermission")
+    private fun publicar(
+        context: Context,
+        id: Int,
+        builder: NotificationCompat.Builder
+    ): Boolean {
+        if (!puedeNotificar(context)) {
+            return false
+        }
+        return try {
+            NotificationManagerCompat.from(context).notify(id, builder.build())
+            true
+        } catch (_: SecurityException) {
+            false
+        }
+    }
 
     private fun baseBuilder(
         context: Context,

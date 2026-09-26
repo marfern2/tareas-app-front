@@ -6,6 +6,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.os.Build
 import android.provider.Settings
+import androidx.annotation.RequiresApi
 import dam.moviles.tareas_app_front.data.settings.AppSettings
 
 /*
@@ -64,6 +65,7 @@ object NotificationChannels {
         gestor.createNotificationChannels(canales)
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun crearCanal(
         id: String,
         nombre: String,

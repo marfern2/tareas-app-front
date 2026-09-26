@@ -20,6 +20,33 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+
+            val apiUrl = providers.gradleProperty("donitDevApiUrl")
+                .orElse("https://donit-api-dev.marfern.dev/")
+                .get()
+            require(apiUrl.endsWith("/")) {
+                "donitDevApiUrl debe terminar en / para Retrofit"
+            }
+            buildConfigField("String", "API_BASE_URL", "\"$apiUrl\"")
+            manifestPlaceholders["usesCleartextTraffic"] = apiUrl.startsWith("http://").toString()
+        }
+        create("prod") {
+            dimension = "environment"
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                "\"https://donit-api.marfern.dev/\"",
+            )
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -38,6 +65,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

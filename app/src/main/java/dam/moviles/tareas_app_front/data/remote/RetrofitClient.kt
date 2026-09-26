@@ -1,6 +1,7 @@
 package dam.moviles.tareas_app_front.data.remote
 
 import android.content.Context
+import dam.moviles.tareas_app_front.BuildConfig
 import dam.moviles.tareas_app_front.data.remote.api.AuthApi
 import dam.moviles.tareas_app_front.data.remote.api.TareasApi
 import dam.moviles.tareas_app_front.data.remote.api.TiposTareaApi
@@ -16,8 +17,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-
-    private const val BASE_URL = "https://donit-api.marfern.dev/"
 
     @Volatile
     private var tokenStore: TokenStore? = null
@@ -44,7 +43,11 @@ object RetrofitClient {
     // Interceptor de logs para desarrollo: nivel BASIC, no imprime bodies ni
     // cabeceras para no exponer access/refresh tokens ni contraseñas en Logcat.
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BASIC
+        level = if (BuildConfig.DEBUG) {
+            HttpLoggingInterceptor.Level.BASIC
+        } else {
+            HttpLoggingInterceptor.Level.NONE
+        }
     }
 
     // Cliente principal con autenticación automática: añade el token de acceso
@@ -92,7 +95,7 @@ object RetrofitClient {
 
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(BuildConfig.API_BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -100,7 +103,7 @@ object RetrofitClient {
 
     private val retrofitRefresh: Retrofit by lazy {
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(BuildConfig.API_BASE_URL)
             .client(refreshOkHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
