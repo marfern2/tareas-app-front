@@ -18,24 +18,59 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-          cache: gradle
+          java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew
       - name: Unit tests, lint and compile both environments
         run: ./gradlew testDevDebugUnitTest testProdDebugUnitTest lintDevDebug lintProdDebug assembleDevDebug assembleProdDebug --console=plain
-      - name: Build unsigned PROD release
-        if: github.ref == 'refs/heads/master'
-        run: ./gradlew assembleProdRelease --console=plain
+
+  package-development:
+    if: github.ref == 'refs/heads/develop'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: development
+    concurrency:
+      group: android-development
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew
+      - run: ./gradlew assembleDevDebug --console=plain
       - name: Upload DEV APK
-        if: github.ref == 'refs/heads/develop'
         uses: actions/upload-artifact@v4
         with:
           name: donit-dev-${{ github.sha }}
           path: app/build/outputs/apk/dev/debug/*.apk
           retention-days: 14
+
+  package-production:
+    if: github.ref == 'refs/heads/master'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+    concurrency:
+      group: android-production
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew
+      - run: ./gradlew assembleProdRelease --console=plain
       - name: Upload unsigned PROD artifact
-        if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: donit-prod-unsigned-${{ github.sha }}
