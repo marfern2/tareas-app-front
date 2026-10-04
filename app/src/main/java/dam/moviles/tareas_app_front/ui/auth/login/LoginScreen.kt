@@ -335,12 +335,6 @@ fun LoginScreen(
                                     )
                                 )
 
-                                Toast.makeText(
-                                    context,
-                                    "Login correcto",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-
                                 onLoginSuccess(
                                     respuesta.token.orEmpty(),
                                     respuesta.refreshToken.orEmpty(),
@@ -349,6 +343,12 @@ fun LoginScreen(
                                     respuesta.username,
                                     respuesta.email
                                 )
+
+                                Toast.makeText(
+                                    context,
+                                    "Login correcto",
+                                    Toast.LENGTH_SHORT
+                                ).show()
 
                             } catch (e: Exception) {
                                 generalError = ErrorMapper.mensajePara(
