@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import dam.moviles.tareas_app_front.R
 import dam.moviles.tareas_app_front.data.remote.ErrorMapper
 import dam.moviles.tareas_app_front.data.remote.RetrofitClient
-import dam.moviles.tareas_app_front.data.remote.dto.RegistroRequestDto
 import dam.moviles.tareas_app_front.ui.auth.login.LoginScreen
 import dam.moviles.tareas_app_front.ui.components.AnimatedBlueButton
 import kotlinx.coroutines.launch
@@ -261,8 +260,8 @@ fun RegisterScreen(
 
                         var hayError = false
 
-                        if (username.isBlank()) {
-                            usernameError = "El nombre de usuario es obligatorio"
+                        usernameError = usernameValidationError(username)
+                        if (usernameError != null) {
                             hayError = true
                         }
 
@@ -286,30 +285,26 @@ fun RegisterScreen(
                             return@AnimatedBlueButton
                         }
 
-                        scope.launch {
-                            try {
-                                isLoading = true
+                        usernameError = submitIfValidUsername(username, email, password) { request ->
+                            scope.launch {
+                                try {
+                                    isLoading = true
 
-                                RetrofitClient.authApi.registro(
-                                    RegistroRequestDto(
-                                        username = username.trim(),
-                                        email = email.trim(),
-                                        password = password
-                                    )
-                                )
+                                    RetrofitClient.authApi.registro(request)
 
-                                Toast.makeText(
-                                    context,
-                                    "Cuenta creada correctamente",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                    Toast.makeText(
+                                        context,
+                                        "Cuenta creada correctamente",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
 
-                                onGoToLogin("Cuenta creada correctamente. Ya puedes iniciar sesión.")
+                                    onGoToLogin("Cuenta creada correctamente. Ya puedes iniciar sesión.")
 
-                            } catch (e: Exception) {
-                                generalError = ErrorMapper.mensajePara(e)
-                            } finally {
-                                isLoading = false
+                                } catch (e: Exception) {
+                                    generalError = ErrorMapper.mensajePara(e)
+                                } finally {
+                                    isLoading = false
+                                }
                             }
                         }
                     },
