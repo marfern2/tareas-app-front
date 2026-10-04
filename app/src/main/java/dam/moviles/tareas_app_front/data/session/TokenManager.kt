@@ -2,12 +2,6 @@ package dam.moviles.tareas_app_front.data.session
 
 import android.content.Context
 
-/**
- * Almacenamiento simple de credenciales de sesión.
- *
- * Desacopla el acceso a tokens del almacenamiento real para poder
- * testear el interceptor y el authenticator sin instrumentación.
- */
 interface TokenStore {
     fun obtenerAccessToken(): String?
     fun obtenerRefreshToken(): String?
@@ -16,117 +10,111 @@ interface TokenStore {
     fun borrarTokens()
 }
 
-/**
- * Guarda los tokens de acceso y refresh.
- *
- * El refresh token rota en el backend: cada renovación devuelve un refresh
- * nuevo e invalida el anterior. Por eso access + refresh se guardan SIEMPRE
- * juntos, en una única transacción atómica sobre SharedPreferences.
- *
- * Semántica de "Mantener sesión iniciada":
- *  - persistir = true  -> ambos tokens se escriben en SharedPreferences y la
- *    sesión se restaura en futuras aperturas.
- *  - persistir = false -> los tokens viven solo en memoria del proceso. La
- *    sesión funciona mientras el proceso siga vivo, pero no se restaura tras
- *    cerrar/abrir la app. El refresh generado durante la sesión tampoco se
- *    persiste.
- *
- * RIESGO CONOCIDO (migración pendiente, no bloqueante):
- *  - Los tokens se almacenan en SharedPreferences (no cifrados con Keystore).
- *    Hacerlo bien requeriría Android Keystore o encrypción en capa propia;
- *    `androidx.security:security-crypto` está deprecado y su introducción aquí
- *    sería una migración arriesgada. Por ahora se mantiene SharedPreferences
- *    y no se loguea ningún token en ninguna parte.
- */
-class TokenManager(
-    context: Context
+/** Los tokens persistentes se leen únicamente del almacén cifrado tras migrar. */
+class TokenManager internal constructor(
+    context: Context,
+    private val secure: SecureTokenStorage
 ) : TokenStore {
+    constructor(context: Context) : this(context, KeystoreTokenStorage(context))
 
-    private val sharedPreferences = context.applicationContext.getSharedPreferences(
-        "sesion_usuario",
-        Context.MODE_PRIVATE
+    private val legacy = context.getSharedPreferences(
+        "sesion_usuario", Context.MODE_PRIVATE
     )
 
-    // Caché en memoria compartida por todas las instancias del proceso.
-    // Permite que "Mantener sesión" desactivado funcione durante la vida del
-    // proceso aunque MainActivity, los workers y los interceptores usen
-    // instancias distintas de TokenManager.
     companion object {
         const val CLAVE_ACCESS_TOKEN = "access_token"
         const val CLAVE_REFRESH_TOKEN = "refresh_token"
         const val CLAVE_PERSISTIR_SESION = "mantener_sesion"
-
-        @Volatile
-        private var memoriaAccess: String? = null
-
-        @Volatile
-        private var memoriaRefresh: String? = null
-
-        @Volatile
+        private const val CLAVE_JWT_LEGACY = "jwt_token"
+        private val lock = Any()
+        private var memoria: SessionTokens? = null
         private var memoriaPersistir: Boolean? = null
     }
 
-    override fun obtenerAccessToken(): String? {
-        return memoriaAccess
-            ?: sharedPreferences.getString(CLAVE_ACCESS_TOKEN, null)
+    override fun obtenerAccessToken(): String? = synchronized(lock) {
+        memoria?.access ?: tokensPersistentes()?.access
     }
 
-    override fun obtenerRefreshToken(): String? {
-        return memoriaRefresh
-            ?: sharedPreferences.getString(CLAVE_REFRESH_TOKEN, null)
+    override fun obtenerRefreshToken(): String? = synchronized(lock) {
+        memoria?.refresh ?: tokensPersistentes()?.refresh
     }
 
-    override fun obtenerPersistirSesion(): Boolean {
-        return memoriaPersistir
-            ?: sharedPreferences.getBoolean(CLAVE_PERSISTIR_SESION, false)
+    override fun obtenerPersistirSesion(): Boolean = synchronized(lock) {
+        memoriaPersistir ?: legacy.getBoolean(CLAVE_PERSISTIR_SESION, false)
     }
 
-    /**
-     * Guarda access + refresh de forma atómica.
-     *
-     * Si [persistir] es true se escriben ambos en disco en la misma
-     * transacción (`commit` síncrono para que una rotación nunca quede a medias
-     * si el proceso muere justo después). Si es false se limpia el disco y solo
-     * queda la sesión en memoria del proceso.
-     */
-    override fun guardarTokens(
-        accessToken: String,
-        refreshToken: String,
-        persistir: Boolean
-    ) {
-        memoriaAccess = accessToken
-        memoriaRefresh = refreshToken
-        memoriaPersistir = persistir
-
-        val editor = sharedPreferences.edit()
-            .putBoolean(CLAVE_PERSISTIR_SESION, persistir)
-
-        if (persistir) {
-            editor
-                .putString(CLAVE_ACCESS_TOKEN, accessToken)
-                .putString(CLAVE_REFRESH_TOKEN, refreshToken)
-        } else {
-            editor
-                .remove(CLAVE_ACCESS_TOKEN)
-                .remove(CLAVE_REFRESH_TOKEN)
+    override fun guardarTokens(accessToken: String, refreshToken: String, persistir: Boolean) {
+        synchronized(lock) {
+            if (persistir) {
+                secure.write(SessionTokens(accessToken, refreshToken))
+                borrarLegacyTokens(persistir = true)
+                memoria = null
+            } else {
+                secure.clear()
+                borrarLegacyTokens(persistir = false)
+                memoria = SessionTokens(accessToken, refreshToken)
+            }
+            memoriaPersistir = persistir
         }
-
-        // Limpieza de la clave legada del antiguo sistema de un solo token JWT.
-        editor.remove("jwt_token")
-
-        editor.commit()
     }
 
     override fun borrarTokens() {
-        memoriaAccess = null
-        memoriaRefresh = null
-        memoriaPersistir = null
+        synchronized(lock) {
+            memoria = null
+            memoriaPersistir = null
+            var error: RuntimeException? = null
+            try {
+                secure.clear()
+            } catch (e: RuntimeException) {
+                error = e
+            }
+            try {
+                comprobar(legacy.edit()
+                    .remove(CLAVE_ACCESS_TOKEN)
+                    .remove(CLAVE_REFRESH_TOKEN)
+                    .remove(CLAVE_JWT_LEGACY)
+                    .remove(CLAVE_PERSISTIR_SESION)
+                    .commit())
+            } catch (e: RuntimeException) {
+                if (error == null) error = e else error.addSuppressed(e)
+            }
+            if (error != null) throw error
+        }
+    }
 
-        sharedPreferences.edit()
+    private fun tokensPersistentes(): SessionTokens? {
+        val guardados = secure.read()
+        val accessLegacy = legacy.getString(CLAVE_ACCESS_TOKEN, null)
+        val refreshLegacy = legacy.getString(CLAVE_REFRESH_TOKEN, null)
+        val hayLegacy = accessLegacy != null || refreshLegacy != null ||
+            legacy.contains(CLAVE_JWT_LEGACY)
+
+        if (!hayLegacy) return guardados
+        if (guardados != null) {
+            borrarLegacyTokens()
+            return guardados
+        }
+        if (accessLegacy == null || refreshLegacy == null) {
+            borrarLegacyTokens()
+            return null
+        }
+
+        val migrados = SessionTokens(accessLegacy, refreshLegacy)
+        secure.write(migrados)
+        borrarLegacyTokens()
+        return migrados
+    }
+
+    private fun borrarLegacyTokens(persistir: Boolean? = null) {
+        val editor = legacy.edit()
             .remove(CLAVE_ACCESS_TOKEN)
             .remove(CLAVE_REFRESH_TOKEN)
-            .remove(CLAVE_PERSISTIR_SESION)
-            .remove("jwt_token")
-            .commit()
+            .remove(CLAVE_JWT_LEGACY)
+        if (persistir != null) editor.putBoolean(CLAVE_PERSISTIR_SESION, persistir)
+        comprobar(editor.commit())
+    }
+
+    private fun comprobar(ok: Boolean) {
+        if (!ok) throw IllegalStateException("No se pudo guardar la sesión")
     }
 }
