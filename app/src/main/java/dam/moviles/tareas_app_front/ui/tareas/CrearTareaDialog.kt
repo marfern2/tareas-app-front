@@ -381,7 +381,6 @@ fun CrearTareaDialog(
                         val resultado = try {
                             onGuardar(tareaNueva)
                         } catch (e: Exception) {
-                            e.printStackTrace()
                             ResultadoGuardarTarea.ErrorGeneral(
                                 ErrorMapper.mensajePara(e)
                             )

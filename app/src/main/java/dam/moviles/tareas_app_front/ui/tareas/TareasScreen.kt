@@ -175,7 +175,6 @@ fun TareasScreen(
                 tareas = repository.obtenerTareas()
                 tiposTarea = repository.obtenerTiposTarea()
             } catch (e: Exception) {
-                e.printStackTrace()
                 error = ErrorMapper.mensajePara(e)
             } finally {
                 isLoading = false
@@ -200,7 +199,6 @@ fun TareasScreen(
                 tareaEliminando = null
                 cargarDatos()
             } catch (e: Exception) {
-                e.printStackTrace()
                 error = ErrorMapper.mensajePara(e)
             }
         }
@@ -507,7 +505,6 @@ fun TareasScreen(
                                     }
                                 }
                             } catch (e: Exception) {
-                                e.printStackTrace()
                                 error = ErrorMapper.mensajePara(e)
                             }
                         }
@@ -564,7 +561,6 @@ fun TareasScreen(
 
                     ResultadoGuardarTarea.Exito
                 } catch (e: Exception) {
-                    e.printStackTrace()
 
                     val apiError = ApiErrorParser.parsear(e)
 
@@ -603,7 +599,6 @@ fun TareasScreen(
                         tiposTarea =
                             repository.obtenerTiposTarea()
                     } catch (e: Exception) {
-                        e.printStackTrace()
                         error = ErrorMapper.mensajePara(e)
                     }
                 }
@@ -655,7 +650,6 @@ fun TareasScreen(
 
                     ResultadoGuardarTarea.Exito
                 } catch (e: Exception) {
-                    e.printStackTrace()
 
                     val apiError = ApiErrorParser.parsear(e)
 

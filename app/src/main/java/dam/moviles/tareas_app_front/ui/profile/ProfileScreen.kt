@@ -80,6 +80,7 @@ fun ProfileScreen(
     var fotoActual by remember(fotoPerfilUri) {
         mutableStateOf(fotoPerfilUri)
     }
+    var fotoError by remember { mutableStateOf<String?>(null) }
 
     val selectorFoto = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -90,14 +91,13 @@ fun ProfileScreen(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
+                val nuevaUri = uri.toString()
+                fotoActual = nuevaUri
+                fotoError = null
+                onFotoCambiada(nuevaUri)
             } catch (e: SecurityException) {
-                e.printStackTrace()
+                fotoError = "No se pudo guardar el acceso a la foto. Selecciona otra imagen."
             }
-
-            val nuevaUri = uri.toString()
-
-            fotoActual = nuevaUri
-            onFotoCambiada(nuevaUri)
         }
     }
 
@@ -108,7 +108,6 @@ fun ProfileScreen(
                 error = null
                 tareas = repository.obtenerTareas()
             } catch (e: Exception) {
-                e.printStackTrace()
                 error = ErrorMapper.mensajePara(e)
             } finally {
                 isLoading = false
@@ -206,6 +205,11 @@ fun ProfileScreen(
                             )
                         }
                     )
+
+                    fotoError?.let { mensaje ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = mensaje, color = rojo, fontSize = 14.sp)
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 

@@ -383,7 +383,6 @@ fun EditarTareaDialog(
                         val resultado = try {
                             onGuardar(tareaActualizada)
                         } catch (e: Exception) {
-                            e.printStackTrace()
                             ResultadoGuardarTarea.ErrorGeneral(
                                 ErrorMapper.mensajePara(e)
                             )
