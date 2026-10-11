@@ -5,7 +5,7 @@
 | `devDebug` / `devRelease` | Donit Dev | `dam.moviles.tareas_app_front.dev` | `https://donit-api-dev.marfern.dev/` |
 | `prodDebug` / `prodRelease` | Donit | `dam.moviles.tareas_app_front` | `https://donit-api.marfern.dev/` |
 
-Los APK debug de DEV y PROD pueden instalarse simultáneamente. Cada variante compila su URL en `BuildConfig.API_BASE_URL`; no existe selección de entorno en runtime. Los APK release sin firma requieren signing antes de instalarse.
+Los APK debug de DEV y PROD pueden instalarse simultáneamente. Cada variante compila su URL en `BuildConfig.API_BASE_URL`; no existe selección de entorno en runtime. El empaquetado release exige firma configurada y falla si faltan credenciales.
 
 ## Builds
 
@@ -31,8 +31,8 @@ El valor debe terminar en `/`. Cuando la URL empieza por `http://`, cleartext se
 
 ## CI y signing
 
-Los PR compilan, prueban y ejecutan lint para DEV y PROD. `develop` adjunta un APK DEV debug. `master` genera un APK PROD release sin firma y no publica en Google Play.
+Los PR compilan, prueban y ejecutan lint para DEV y PROD. `develop` adjunta un APK DEV debug. `master` genera un APK PROD release firmado si el entorno `production` tiene los secretos de firma; no publica en Google Play.
 
 El empaquetado de `develop` usa GitHub Environment `development` y el grupo de concurrencia `android-development`, cancelable. El de `master` usa `production` y `android-production`: no cancela ejecuciones en curso y encola hasta 100 pendientes. Los PR solo ejecutan CI y no registran deployments.
 
-Para signing futuro, almacenar el keystore como Base64 y sus credenciales en GitHub Secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`), reconstruirlo en `$RUNNER_TEMP` y nunca versionarlo.
+El keystore Base64 y sus credenciales se guardan en los secretos de `production` (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`). El workflow lo reconstruye en `$RUNNER_TEMP`. Para firma local y verificación con `apksigner`, consulta el [README](../README.md#firma-local-de-release). Nunca se versionan el keystore ni las contraseñas.

@@ -15,7 +15,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -47,8 +47,32 @@ android {
         }
     }
 
+    val releaseStoreFile = providers.gradleProperty("donitReleaseStoreFile")
+        .orElse(providers.environmentVariable("DONIT_RELEASE_STORE_FILE")).orNull
+    val releaseStorePassword = providers.gradleProperty("donitReleaseStorePassword")
+        .orElse(providers.environmentVariable("DONIT_RELEASE_STORE_PASSWORD")).orNull
+    val releaseKeyAlias = providers.gradleProperty("donitReleaseKeyAlias")
+        .orElse(providers.environmentVariable("DONIT_RELEASE_KEY_ALIAS")).orNull
+    val releaseKeyPassword = providers.gradleProperty("donitReleaseKeyPassword")
+        .orElse(providers.environmentVariable("DONIT_RELEASE_KEY_PASSWORD")).orNull
+    val hasReleaseSigning = listOf(
+        releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
+    ).all { !it.isNullOrBlank() }
+
+    if (hasReleaseSigning) {
+        signingConfigs.create("release") {
+            storeFile = file(releaseStoreFile!!)
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -66,6 +90,39 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+val checkReleaseSigningCredentials = tasks.register("checkReleaseSigningCredentials") {
+    doLast {
+        val names = listOf(
+            "donitReleaseStoreFile" to "DONIT_RELEASE_STORE_FILE",
+            "donitReleaseStorePassword" to "DONIT_RELEASE_STORE_PASSWORD",
+            "donitReleaseKeyAlias" to "DONIT_RELEASE_KEY_ALIAS",
+            "donitReleaseKeyPassword" to "DONIT_RELEASE_KEY_PASSWORD",
+        )
+        val missing = names.filter { (property, environment) ->
+            providers.gradleProperty(property)
+                .orElse(providers.environmentVariable(environment))
+                .orNull.isNullOrBlank()
+        }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "No se puede generar un APK release firmado. Faltan: " +
+                    missing.joinToString { (property, environment) -> "$property / $environment" }
+            )
+        }
+        val storePath = providers.gradleProperty("donitReleaseStoreFile")
+            .orElse(providers.environmentVariable("DONIT_RELEASE_STORE_FILE")).get()
+        if (!file(storePath).isFile) {
+            throw GradleException("No se puede generar un APK release firmado: el keystore configurado no existe.")
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name.matches(Regex("package(?:Dev|Prod)Release"))) {
+        dependsOn(checkReleaseSigningCredentials)
     }
 }
 

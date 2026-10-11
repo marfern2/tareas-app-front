@@ -3,4 +3,5 @@
     <!-- API 24–30: ni el legacy en claro ni el cifrado viajan a otro dispositivo. -->
     <exclude domain="sharedpref" path="sesion_usuario.xml" />
     <exclude domain="sharedpref" path="sesion_segura.xml" />
+    <exclude domain="sharedpref" path="perfil_usuario.xml" />
 </full-backup-content>

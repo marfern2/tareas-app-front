@@ -69,10 +69,23 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew
-      - run: ./gradlew assembleProdRelease --console=plain
-      - name: Upload unsigned PROD artifact
+      - name: Restore release keystore outside repository
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          : "${ANDROID_KEYSTORE_BASE64:?ANDROID_KEYSTORE_BASE64 is required}"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/donit-release.jks"
+          chmod 600 "$RUNNER_TEMP/donit-release.jks"
+      - name: Build signed PROD APK
+        env:
+          DONIT_RELEASE_STORE_FILE: ${{ runner.temp }}/donit-release.jks
+          DONIT_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          DONIT_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          DONIT_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleProdRelease --console=plain
+      - name: Upload signed PROD artifact
         uses: actions/upload-artifact@v4
         with:
-          name: donit-prod-unsigned-${{ github.sha }}
-          path: app/build/outputs/apk/prod/release/*.apk
+          name: donit-prod-signed-${{ github.sha }}
+          path: app/build/outputs/apk/prod/release/app-prod-release.apk
           retention-days: 14

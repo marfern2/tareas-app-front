@@ -140,7 +140,6 @@ fun CalendarScreen(
                 tareas = repository.obtenerTareas()
                 tiposTarea = repository.obtenerTiposTarea()
             } catch (e: Exception) {
-                e.printStackTrace()
                 error = ErrorMapper.mensajePara(e)
             } finally {
                 isLoading = false
@@ -244,7 +243,6 @@ fun CalendarScreen(
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
                 error = ErrorMapper.mensajePara(e)
             }
         }
@@ -522,7 +520,6 @@ fun CalendarScreen(
 
                     ResultadoGuardarTarea.Exito
                 } catch (e: Exception) {
-                    e.printStackTrace()
 
                     val apiError = ApiErrorParser.parsear(e)
 
@@ -560,7 +557,6 @@ fun CalendarScreen(
 
                         tiposTarea = repository.obtenerTiposTarea()
                     } catch (e: Exception) {
-                        e.printStackTrace()
                         error = ErrorMapper.mensajePara(e)
                     }
                 }
@@ -612,7 +608,6 @@ fun CalendarScreen(
 
                     ResultadoGuardarTarea.Exito
                 } catch (e: Exception) {
-                    e.printStackTrace()
 
                     val apiError = ApiErrorParser.parsear(e)
 
